@@ -6,7 +6,7 @@ type FutureEntry = {
   description: string;
   icon: string;
   note?: string;
-  slug?: "records";
+  slug?: "records" | "plan";
 };
 
 const futureEntries: FutureEntry[] = [
@@ -19,6 +19,7 @@ const futureEntries: FutureEntry[] = [
     title: "個別支援計画",
     description: "長期・短期目標と支援内容の計画管理",
     icon: "📝",
+    slug: "plan",
   },
   {
     title: "支援記録",
