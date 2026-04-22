@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { use, useRef, useState } from "react";
 import { findUserById } from "@/data/users";
-import { createSupportPlan, SupportPlanInput } from "@/lib/api";
+import {
+  createSupportPlan,
+  SupportPlanInput,
+  type SupportPlanDraft,
+} from "@/lib/api";
+import ImportPanel from "@/components/ImportPanel";
 
 const MAX_SHORT_TERM_GOALS = 6;
 const INITIAL_SHORT_TERM_GOALS = 3;
@@ -53,6 +58,22 @@ function emptyToNull(v: FormDataEntryValue | null): string | null {
   if (v === null) return null;
   const s = typeof v === "string" ? v.trim() : "";
   return s.length > 0 ? s : null;
+}
+
+function setFormFieldValue(
+  form: HTMLFormElement | null,
+  name: string,
+  value: string | null | undefined,
+) {
+  if (!form) return;
+  if (value == null) return;
+  const el = form.elements.namedItem(name) as
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLSelectElement
+    | null;
+  if (!el) return;
+  el.value = value;
 }
 
 export default function UserPlanPage({
@@ -153,6 +174,31 @@ export default function UserPlanPage({
     setShortTermGoals(createEmptyShortTermGoals());
     setSaveStatus("idle");
     setMessage(null);
+  };
+
+  const handleApplyDraft = (draft: SupportPlanDraft) => {
+    const form = formRef.current;
+    setFormFieldValue(form, "createdAt", draft.plan_created_date);
+    setFormFieldValue(form, "periodStart", draft.period_start);
+    setFormFieldValue(form, "periodEnd", draft.period_end);
+    setFormFieldValue(form, "longTermGoal", draft.long_term_goal);
+    setFormFieldValue(form, "supportContent", draft.support_content);
+    setFormFieldValue(form, "userIntention", draft.user_intention);
+    setFormFieldValue(form, "note", draft.note);
+    if (Array.isArray(draft.short_term_goals) && draft.short_term_goals.length > 0) {
+      const trimmed = draft.short_term_goals
+        .map((g) => (typeof g === "string" ? g : ""))
+        .filter((g) => g.length > 0)
+        .slice(0, MAX_SHORT_TERM_GOALS);
+      setShortTermGoals(
+        trimmed.length >= INITIAL_SHORT_TERM_GOALS
+          ? trimmed
+          : [
+              ...trimmed,
+              ...Array(INITIAL_SHORT_TERM_GOALS - trimmed.length).fill(""),
+            ],
+      );
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -282,6 +328,11 @@ export default function UserPlanPage({
             </span>
           )}
         </div>
+
+        <ImportPanel<SupportPlanDraft>
+          screenType="support_plan"
+          onApply={handleApplyDraft}
+        />
 
         <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <section>

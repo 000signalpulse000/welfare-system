@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -87,14 +88,25 @@ class SupportPlanRead(BaseModel):
 class ServiceMeetingCreate(BaseModel):
     user_id: str = Field(min_length=1, max_length=32)
     service_type: str = Field(min_length=1, max_length=64)
+    meeting_title: str | None = Field(default=None, max_length=128)
     meeting_date: date
+    meeting_time: str | None = Field(default=None, max_length=8)
     meeting_place: str = Field(min_length=1, max_length=255)
     attendees: str | None = None
+    user_attended: bool | None = None
     agenda: str | None = None
+    status_check: str | None = None
+    issues: str | None = None
     discussion: str | None = None
     decision: str | None = None
+    next_policy: str | None = None
     next_action: str | None = None
+    next_scheduled_date: date | None = None
     note: str | None = None
+    user_signature: str | None = Field(default=None, max_length=128)
+    user_seal: str | None = Field(default=None, max_length=255)
+    staff_signature: str | None = Field(default=None, max_length=128)
+    staff_seal: str | None = Field(default=None, max_length=255)
 
 
 class ServiceMeetingRead(BaseModel):
@@ -103,14 +115,25 @@ class ServiceMeetingRead(BaseModel):
     id: int
     user_id: str
     service_type: str
+    meeting_title: str | None
     meeting_date: date
+    meeting_time: str | None
     meeting_place: str
     attendees: str | None
+    user_attended: bool | None
     agenda: str | None
+    status_check: str | None
+    issues: str | None
     discussion: str | None
     decision: str | None
+    next_policy: str | None
     next_action: str | None
+    next_scheduled_date: date | None
     note: str | None
+    user_signature: str | None
+    user_seal: str | None
+    staff_signature: str | None
+    staff_seal: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -158,3 +181,31 @@ class MonitoringRead(BaseModel):
     signed_date: date
     created_at: datetime
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# AI import foundation (shared extract + structure)
+# ---------------------------------------------------------------------------
+
+
+class ExtractResponse(BaseModel):
+    success: bool
+    file_type: str
+    file_name: str
+    extracted_text: str
+    warnings: list[str] = Field(default_factory=list)
+
+
+ScreenType = Literal["monitoring", "support_plan", "service_meeting"]
+
+
+class StructureRequest(BaseModel):
+    screen_type: ScreenType
+    extracted_text: str = ""
+
+
+class StructureResponse(BaseModel):
+    success: bool
+    screen_type: ScreenType
+    structured_data: dict[str, Any]
+    warnings: list[str] = Field(default_factory=list)

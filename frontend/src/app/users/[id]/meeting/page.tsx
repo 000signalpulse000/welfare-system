@@ -1,64 +1,53 @@
-"use client";
-
 import Link from "next/link";
-import { use, useRef, useState } from "react";
 import { findUserById } from "@/data/users";
-import { createServiceMeeting, ServiceMeetingInput } from "@/lib/api";
+import { listServiceMeetings, type BackendServiceMeeting } from "@/lib/api";
 
-type SaveStatus = "idle" | "saving" | "saved" | "failed";
-
-function Field({
-  id,
-  label,
-  required,
-  children,
-  hint,
-  full,
-}: {
-  id?: string;
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-  hint?: string;
-  full?: boolean;
-}) {
-  return (
-    <div className={full ? "md:col-span-12" : "md:col-span-6"}>
-      <label
-        htmlFor={id}
-        className="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1"
-      >
-        <span>{label}</span>
-        {required && (
-          <span className="text-[10px] text-rose-600 font-semibold">必須</span>
-        )}
-      </label>
-      {children}
-      {hint && <p className="mt-1 text-[11px] text-slate-500">{hint}</p>}
-    </div>
-  );
+function countAttendees(attendees: string | null): number {
+  if (!attendees) return 0;
+  return attendees
+    .split(/\r?\n|、|,|・/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0).length;
 }
 
-const inputBase =
-  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-400";
-
-function emptyToNull(v: FormDataEntryValue | null): string | null {
-  if (v === null) return null;
-  const s = typeof v === "string" ? v.trim() : "";
-  return s.length > 0 ? s : null;
+function formatDate(value: string): string {
+  return value;
 }
 
-export default function UserMeetingPage({
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  try {
+    const d = new Date(value);
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+      d.getDate(),
+    )} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return value;
+  }
+}
+
+async function loadMeetings(
+  userId: string,
+): Promise<{ items: BackendServiceMeeting[]; error: string | null }> {
+  try {
+    const items = await listServiceMeetings(userId);
+    return { items, error: null };
+  } catch {
+    return {
+      items: [],
+      error: "会議一覧の取得に失敗しました。通信状況を確認してください。",
+    };
+  }
+}
+
+export default async function MeetingListPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
+  const { id } = await params;
   const user = findUserById(id);
-
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
-  const [message, setMessage] = useState<string | null>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
   if (!user) {
     return (
@@ -70,10 +59,7 @@ export default function UserMeetingPage({
                 ホーム
               </Link>
               <span aria-hidden>/</span>
-              <Link
-                href="/users"
-                className="hover:text-white hover:underline"
-              >
+              <Link href="/users" className="hover:text-white hover:underline">
                 利用者一覧
               </Link>
               <span aria-hidden>/</span>
@@ -84,7 +70,6 @@ export default function UserMeetingPage({
             </h1>
           </div>
         </header>
-
         <main className="max-w-6xl mx-auto px-6 py-10">
           <section className="bg-white border border-slate-200 rounded-lg p-8 text-center">
             <div className="text-4xl mb-3" aria-hidden>
@@ -105,72 +90,14 @@ export default function UserMeetingPage({
             </Link>
           </section>
         </main>
-
-        <footer className="border-t border-slate-200 bg-white">
-          <div className="max-w-6xl mx-auto px-6 py-4 text-xs text-slate-500 flex items-center justify-between">
-            <span>© 2026 福祉業務システム</span>
-            <span>内部業務利用</span>
-          </div>
-        </footer>
       </div>
     );
   }
 
-  const userDetailHref = `/users/${user.id.toLowerCase()}`;
-
-  const handleReset = () => {
-    formRef.current?.reset();
-    setSaveStatus("idle");
-    setMessage(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
-
-    const meetingDate = (data.get("meetingDate") as string | null) ?? "";
-    const meetingPlace = ((data.get("meetingPlace") as string | null) ?? "").trim();
-    const serviceType = ((data.get("service") as string | null) ?? "").trim();
-
-    if (!meetingDate || !meetingPlace || !serviceType) {
-      setSaveStatus("failed");
-      setMessage("必須項目（サービス種別・開催日・開催場所）を入力してください");
-      return;
-    }
-
-    const payload: ServiceMeetingInput = {
-      user_id: user.id,
-      service_type: serviceType,
-      meeting_date: meetingDate,
-      meeting_place: meetingPlace,
-      attendees: emptyToNull(data.get("attendees")),
-      agenda: emptyToNull(data.get("agenda")),
-      discussion: emptyToNull(data.get("discussion")),
-      decision: emptyToNull(data.get("decision")),
-      next_action: emptyToNull(data.get("nextAction")),
-      note: emptyToNull(data.get("note")),
-    };
-
-    setSaveStatus("saving");
-    setMessage("保存中…");
-    try {
-      const saved = await createServiceMeeting(payload);
-      setSaveStatus("saved");
-      setMessage(`保存しました（ID: ${saved.id}）`);
-      form.reset();
-    } catch {
-      setSaveStatus("failed");
-      setMessage("保存に失敗しました。通信状況を確認してください。");
-    }
-  };
-
-  const statusClass =
-    saveStatus === "saved"
-      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-      : saveStatus === "failed"
-        ? "text-rose-700 bg-rose-50 border-rose-200"
-        : "text-slate-600 bg-slate-100 border-slate-200";
+  const lowerId = user.id.toLowerCase();
+  const userDetailHref = `/users/${lowerId}`;
+  const newHref = `/users/${lowerId}/meeting/new`;
+  const { items, error } = await loadMeetings(user.id);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -198,7 +125,7 @@ export default function UserMeetingPage({
             サービス担当者会議
           </h1>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-            関係者間で支援方針と対応内容を整理する画面
+            関係者間で支援方針と対応内容を整理した会議記録の一覧
           </p>
         </div>
       </header>
@@ -223,181 +150,97 @@ export default function UserMeetingPage({
               利用者一覧へ
             </Link>
           </div>
-          {message && (
-            <span
-              role="status"
-              className={`text-xs rounded-full border px-3 py-1 ${statusClass}`}
-            >
-              {message}
-            </span>
-          )}
+          <Link
+            href={newHref}
+            className="inline-flex items-center gap-1 rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700"
+          >
+            <span aria-hidden>＋</span>
+            新規作成
+          </Link>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
-          <section>
-            <h2 className="text-base font-semibold text-slate-700 mb-3">
-              開催情報
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-base font-semibold text-slate-700">
+              会議一覧
             </h2>
-            <div className="bg-white border border-slate-200 rounded-lg p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
-              <Field id="meeting-user" label="利用者名">
-                <input
-                  id="meeting-user"
-                  name="userName"
-                  type="text"
-                  readOnly
-                  defaultValue={user.name}
-                  className={inputBase + " bg-slate-50 text-slate-700"}
-                />
-              </Field>
-              <Field id="meeting-service" label="サービス種別" required>
-                <input
-                  id="meeting-service"
-                  name="service"
-                  type="text"
-                  defaultValue={user.service}
-                  placeholder="例: 就労継続支援B型"
-                  required
-                  className={inputBase}
-                />
-              </Field>
-              <Field id="meeting-date" label="開催日" required>
-                <input
-                  id="meeting-date"
-                  name="meetingDate"
-                  type="date"
-                  required
-                  className={inputBase + " tabular-nums"}
-                />
-              </Field>
-              <Field id="meeting-place" label="開催場所" required>
-                <input
-                  id="meeting-place"
-                  name="meetingPlace"
-                  type="text"
-                  autoComplete="off"
-                  placeholder="例: 事業所 相談室／オンライン"
-                  required
-                  className={inputBase}
-                />
-              </Field>
-              <Field
-                id="meeting-attendees"
-                label="参加者"
-                full
-                hint="氏名・所属・役割を1行1名または区切り文字で記載します。"
-              >
-                <textarea
-                  id="meeting-attendees"
-                  name="attendees"
-                  rows={4}
-                  placeholder={
-                    "例:\n本人 佐藤 健一\n家族 佐藤 花子（母）\n相談支援専門員 ○○（△△相談支援事業所）\nサービス管理責任者 田中 美咲（当事業所）"
-                  }
-                  className={inputBase + " leading-relaxed"}
-                />
-              </Field>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-700 mb-3">
-              協議内容
-            </h2>
-            <div className="bg-white border border-slate-200 rounded-lg p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
-              <Field
-                id="meeting-agenda"
-                label="議題"
-                full
-                hint="会議の目的・テーマを簡潔に記載します。"
-              >
-                <textarea
-                  id="meeting-agenda"
-                  name="agenda"
-                  rows={3}
-                  placeholder="例: 個別支援計画（第2期）更新の確認／通所ペースの見直しについて"
-                  className={inputBase + " leading-relaxed"}
-                />
-              </Field>
-              <Field
-                id="meeting-discussion"
-                label="協議内容"
-                full
-                hint="議題に沿って交わされた意見・発言の要点を記載します。"
-              >
-                <textarea
-                  id="meeting-discussion"
-                  name="discussion"
-                  rows={6}
-                  placeholder="例: 本人より、通所は継続したい意向。家族より、朝の送り出しが負担との発言。送迎時間の調整案について検討。"
-                  className={inputBase + " leading-relaxed"}
-                />
-              </Field>
-              <Field
-                id="meeting-decision"
-                label="決定事項"
-                full
-                hint="合意された事項・結論を箇条書きで記載します。"
-              >
-                <textarea
-                  id="meeting-decision"
-                  name="decision"
-                  rows={5}
-                  placeholder={
-                    "例:\n・通所は現行継続（週3回）\n・送迎時間を8:45→9:00に変更\n・次回モニタリングは3ヶ月後"
-                  }
-                  className={inputBase + " leading-relaxed"}
-                />
-              </Field>
-              <Field
-                id="meeting-next-action"
-                label="今後の対応"
-                full
-                hint="誰が・いつまでに・何を行うかを明確に記載します。"
-              >
-                <textarea
-                  id="meeting-next-action"
-                  name="nextAction"
-                  rows={5}
-                  placeholder={
-                    "例:\n・当事業所: 計画書の差し替え案を今週中に家族へ送付\n・相談支援専門員: 次回会議日程の調整（1ヶ月以内）"
-                  }
-                  className={inputBase + " leading-relaxed"}
-                />
-              </Field>
-              <Field id="meeting-note" label="備考" full>
-                <textarea
-                  id="meeting-note"
-                  name="note"
-                  rows={3}
-                  placeholder="例: 欠席者への情報共有方法、議事録配布先 など"
-                  className={inputBase + " leading-relaxed"}
-                />
-              </Field>
-            </div>
-          </section>
-
-          <div className="flex items-center justify-between flex-wrap gap-2 bg-white border border-slate-200 rounded-lg p-4">
-            <p className="text-xs text-slate-500">
-              保存するとサーバー（PostgreSQL）に登録されます。
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="rounded-md border border-slate-300 bg-white text-sm px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-              >
-                入力クリア
-              </button>
-              <button
-                type="submit"
-                disabled={saveStatus === "saving"}
-                className="rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {saveStatus === "saving" ? "保存中…" : "保存"}
-              </button>
-            </div>
+            <span className="text-xs text-slate-500">
+              {items.length} 件 / 開催日の新しい順
+            </span>
           </div>
-        </form>
+
+          {error && (
+            <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
+          )}
+
+          {items.length === 0 && !error ? (
+            <div className="bg-white border border-slate-200 rounded-lg p-8 text-center">
+              <div className="text-3xl mb-2" aria-hidden>
+                🗒
+              </div>
+              <p className="text-sm text-slate-600 mb-4">
+                会議記録はまだ登録されていません。
+              </p>
+              <Link
+                href={newHref}
+                className="inline-flex items-center gap-1 rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700"
+              >
+                <span aria-hidden>＋</span>
+                最初の会議を登録
+              </Link>
+            </div>
+          ) : (
+            <ul className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-200">
+              {items.map((m) => {
+                const detailHref = `/users/${lowerId}/meeting/${m.id}`;
+                const title =
+                  m.meeting_title?.trim() ||
+                  (m.agenda?.trim()?.split(/\r?\n/)[0] ?? "").trim() ||
+                  "（件名未入力）";
+                const attendeeCount = countAttendees(m.attendees);
+                return (
+                  <li key={m.id}>
+                    <Link
+                      href={detailHref}
+                      className="grid grid-cols-12 gap-3 px-4 py-3 hover:bg-slate-50"
+                    >
+                      <div className="col-span-12 sm:col-span-3 text-sm">
+                        <div className="text-xs text-slate-500">開催日</div>
+                        <div className="tabular-nums text-slate-800">
+                          {formatDate(m.meeting_date)}
+                          {m.meeting_time ? ` ${m.meeting_time}` : ""}
+                        </div>
+                      </div>
+                      <div className="col-span-12 sm:col-span-5 text-sm">
+                        <div className="text-xs text-slate-500">会議名</div>
+                        <div className="text-slate-900 font-medium truncate">
+                          {title}
+                        </div>
+                      </div>
+                      <div className="col-span-6 sm:col-span-2 text-sm">
+                        <div className="text-xs text-slate-500">参加者</div>
+                        <div className="text-slate-700 tabular-nums">
+                          {attendeeCount > 0 ? `${attendeeCount} 名` : "—"}
+                        </div>
+                      </div>
+                      <div className="col-span-6 sm:col-span-2 text-sm text-right">
+                        <div className="text-xs text-slate-500">最終更新</div>
+                        <div className="text-slate-700 text-xs tabular-nums">
+                          {formatDateTime(m.updated_at)}
+                        </div>
+                      </div>
+                      <div className="col-span-12 text-right text-xs text-slate-500 hover:text-slate-800">
+                        詳細を見る →
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       </main>
 
       <footer className="border-t border-slate-200 bg-white">

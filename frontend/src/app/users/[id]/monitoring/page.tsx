@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { use, useRef, useState } from "react";
 import { findUserById } from "@/data/users";
-import { createMonitoring, MonitoringInput } from "@/lib/api";
+import {
+  createMonitoring,
+  MonitoringInput,
+  type MonitoringDraft,
+} from "@/lib/api";
+import ImportPanel from "@/components/ImportPanel";
 
 type SaveStatus = "idle" | "saving" | "saved" | "failed";
 
@@ -54,6 +59,22 @@ function emptyToNull(v: FormDataEntryValue | null): string | null {
   if (v === null) return null;
   const s = typeof v === "string" ? v.trim() : "";
   return s.length > 0 ? s : null;
+}
+
+function setFormFieldValue(
+  form: HTMLFormElement | null,
+  name: string,
+  value: string | null | undefined,
+) {
+  if (!form) return;
+  if (value == null) return;
+  const el = form.elements.namedItem(name) as
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLSelectElement
+    | null;
+  if (!el) return;
+  el.value = value;
 }
 
 export default function UserMonitoringPage({
@@ -128,6 +149,20 @@ export default function UserMonitoringPage({
     formRef.current?.reset();
     setSaveStatus("idle");
     setMessage(null);
+  };
+
+  const handleApplyDraft = (draft: MonitoringDraft) => {
+    const form = formRef.current;
+    setFormFieldValue(form, "monitoringDate", draft.monitoring_date);
+    // staff_name is read-only on this form; skip overwriting.
+    setFormFieldValue(form, "longTermStatus", draft.long_term_status);
+    setFormFieldValue(form, "shortTermStatus", draft.short_term_status);
+    setFormFieldValue(form, "longTermProgress", draft.long_term_progress);
+    setFormFieldValue(form, "shortTermProgress", draft.short_term_progress);
+    setFormFieldValue(form, "userCondition", draft.user_condition);
+    setFormFieldValue(form, "issues", draft.issues);
+    setFormFieldValue(form, "nextPlan", draft.next_plan);
+    setFormFieldValue(form, "note", draft.note);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -256,6 +291,11 @@ export default function UserMonitoringPage({
             </span>
           )}
         </div>
+
+        <ImportPanel<MonitoringDraft>
+          screenType="monitoring"
+          onApply={handleApplyDraft}
+        />
 
         <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <section>
