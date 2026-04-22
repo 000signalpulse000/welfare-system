@@ -11,6 +11,7 @@ type Phrase = {
 };
 
 const STORAGE_KEY = "welfare:support-phrases/v1";
+const DRAFT_KEY_PREFIX = "welfare:support-record-draft:";
 
 const SAMPLE_PHRASES: Phrase[] = [
   { id: "p-sample-1", name: "PC訓練", text: "PC訓練" },
@@ -41,11 +42,15 @@ export default function SupportRecordPage({
   const [loaded, setLoaded] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [recordText, setRecordText] = useState("");
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
   const [newName, setNewName] = useState("");
   const [newText, setNewText] = useState("");
   const [lastMessage, setLastMessage] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const draftKey = user ? `${DRAFT_KEY_PREFIX}${user.id}` : null;
 
   useEffect(() => {
     try {
@@ -74,6 +79,33 @@ export default function SupportRecordPage({
       // ignore quota errors for now
     }
   }, [phrases, loaded]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    setDraftLoaded(false);
+    try {
+      const raw = localStorage.getItem(draftKey);
+      setRecordText(raw ?? "");
+    } catch {
+      setRecordText("");
+    }
+    setDraftSavedAt(null);
+    setDraftLoaded(true);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey || !draftLoaded) return;
+    try {
+      if (recordText.length === 0) {
+        localStorage.removeItem(draftKey);
+      } else {
+        localStorage.setItem(draftKey, recordText);
+      }
+      setDraftSavedAt(new Date());
+    } catch {
+      // ignore quota errors
+    }
+  }, [recordText, draftKey, draftLoaded]);
 
   const toggleChecked = (id: string) => {
     setCheckedIds((prev) => {
@@ -266,10 +298,30 @@ export default function SupportRecordPage({
               placeholder="例: 午前中はPC訓練を実施。取り組み意欲が高く、集中して作業に取り組めていた。&#10;昼食後は清掃作業に従事。"
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white"
             />
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-xs text-slate-500">
+                入力内容はこの端末に自動保存されます（利用者ごと）。
+                {draftLoaded && draftSavedAt && recordText.length > 0 && (
+                  <span className="ml-2 text-slate-400 tabular-nums">
+                    最終保存 {draftSavedAt.toLocaleTimeString("ja-JP")}
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setRecordText("")}
+                onClick={() => {
+                  setRecordText("");
+                  if (draftKey) {
+                    try {
+                      localStorage.removeItem(draftKey);
+                    } catch {
+                      // ignore
+                    }
+                  }
+                  setDraftSavedAt(null);
+                  setLastMessage("下書きを消去しました");
+                }}
                 className="rounded-md border border-slate-300 bg-white text-sm px-3 py-1.5 text-slate-700 hover:bg-slate-50"
               >
                 本文クリア
@@ -283,6 +335,7 @@ export default function SupportRecordPage({
               >
                 保存（準備中）
               </button>
+              </div>
             </div>
           </div>
 
