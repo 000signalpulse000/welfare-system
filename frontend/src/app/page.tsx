@@ -1,6 +1,14 @@
 import Link from "next/link";
 
-const menuItems = [
+type MenuItem = {
+  title: string;
+  description: string;
+  icon: string;
+  href: string | null;
+  note?: string;
+};
+
+const menuItems: MenuItem[] = [
   {
     title: "利用者一覧",
     description: "登録利用者の基本情報と受給者証情報を確認する",
@@ -24,6 +32,7 @@ const menuItems = [
     description: "日々の支援内容・バイタル・特記事項を記録する",
     icon: "📒",
     href: null,
+    note: "定型文チェック入力・定型文追加保存対応予定",
   },
   {
     title: "モニタリング",
@@ -97,6 +106,11 @@ export default function Home() {
                     <span className="text-sm text-slate-500 leading-relaxed">
                       {item.description}
                     </span>
+                    {item.note && (
+                      <span className="mt-1 inline-flex w-fit items-center rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                        {item.note}
+                      </span>
+                    )}
                   </div>
                   <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 group-hover:text-slate-900">
                     {item.href ? "開く" : "準備中"}

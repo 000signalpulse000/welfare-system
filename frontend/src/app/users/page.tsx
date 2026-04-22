@@ -2,78 +2,17 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-
-type Status = "利用中" | "体験利用" | "一時休止";
-type Service = "就労継続支援B型" | "自立訓練（生活訓練）";
-
-type User = {
-  id: string;
-  name: string;
-  kana: string;
-  service: Service;
-  status: Status;
-  recipientCertExpiry: string;
-  staff: string;
-};
-
-const users: User[] = [
-  {
-    id: "U-0001",
-    name: "佐藤 健一",
-    kana: "サトウ ケンイチ",
-    service: "就労継続支援B型",
-    status: "利用中",
-    recipientCertExpiry: "2027-03-31",
-    staff: "田中 美咲",
-  },
-  {
-    id: "U-0002",
-    name: "鈴木 花子",
-    kana: "スズキ ハナコ",
-    service: "自立訓練（生活訓練）",
-    status: "利用中",
-    recipientCertExpiry: "2026-09-30",
-    staff: "高橋 誠",
-  },
-  {
-    id: "U-0003",
-    name: "山田 太郎",
-    kana: "ヤマダ タロウ",
-    service: "就労継続支援B型",
-    status: "体験利用",
-    recipientCertExpiry: "2026-07-15",
-    staff: "田中 美咲",
-  },
-  {
-    id: "U-0004",
-    name: "伊藤 由美",
-    kana: "イトウ ユミ",
-    service: "自立訓練（生活訓練）",
-    status: "一時休止",
-    recipientCertExpiry: "2026-12-31",
-    staff: "中村 大輔",
-  },
-  {
-    id: "U-0005",
-    name: "渡辺 翔",
-    kana: "ワタナベ ショウ",
-    service: "就労継続支援B型",
-    status: "利用中",
-    recipientCertExpiry: "2027-01-31",
-    staff: "高橋 誠",
-  },
-];
-
-const statusBadge: Record<Status, string> = {
-  利用中: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  体験利用: "bg-sky-50 text-sky-700 border border-sky-200",
-  一時休止: "bg-amber-50 text-amber-700 border border-amber-200",
-};
+import {
+  users,
+  statusBadge,
+  type UserService,
+  type UserStatus,
+} from "@/data/users";
 
 type Filters = {
   keyword: string;
-  service: "" | Service;
-  status: "" | Status;
+  service: "" | UserService;
+  status: "" | UserStatus;
 };
 
 const emptyFilters: Filters = { keyword: "", service: "", status: "" };
@@ -270,11 +209,20 @@ export default function UsersPage() {
                     <th className="text-left font-medium px-4 py-2.5 whitespace-nowrap">
                       担当職員
                     </th>
+                    <th className="text-right font-medium px-4 py-2.5 whitespace-nowrap">
+                      操作
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {filteredUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50">
+                    <tr
+                      key={u.id}
+                      className="hover:bg-slate-50 cursor-pointer"
+                      onClick={() => {
+                        window.location.href = `/users/${u.id.toLowerCase()}`;
+                      }}
+                    >
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="font-medium text-slate-900">
                           {u.name}
@@ -299,6 +247,17 @@ export default function UsersPage() {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-700">
                         {u.staff}
+                      </td>
+                      <td
+                        className="px-4 py-3 whitespace-nowrap text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Link
+                          href={`/users/${u.id.toLowerCase()}`}
+                          className="text-sm font-medium text-slate-700 hover:text-slate-900 hover:underline"
+                        >
+                          詳細 →
+                        </Link>
                       </td>
                     </tr>
                   ))}
