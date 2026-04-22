@@ -19,7 +19,7 @@ const menuItems: MenuItem[] = [
     title: "インテイク",
     description: "新規利用者の受付情報とアセスメントを登録する",
     icon: "📋",
-    href: null,
+    href: "/intake",
   },
   {
     title: "個別支援計画",
