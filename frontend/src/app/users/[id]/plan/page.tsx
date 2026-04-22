@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { use, useState } from "react";
+import { use, useRef, useState } from "react";
 import { findUserById } from "@/data/users";
+import { createSupportPlan, SupportPlanInput } from "@/lib/api";
 
 const MAX_SHORT_TERM_GOALS = 6;
 const INITIAL_SHORT_TERM_GOALS = 3;
+
+type SaveStatus = "idle" | "saving" | "saved" | "failed";
 
 function Field({
   id,
@@ -46,6 +49,12 @@ function createEmptyShortTermGoals(): string[] {
   return Array.from({ length: INITIAL_SHORT_TERM_GOALS }, () => "");
 }
 
+function emptyToNull(v: FormDataEntryValue | null): string | null {
+  if (v === null) return null;
+  const s = typeof v === "string" ? v.trim() : "";
+  return s.length > 0 ? s : null;
+}
+
 export default function UserPlanPage({
   params,
 }: {
@@ -57,6 +66,9 @@ export default function UserPlanPage({
   const [shortTermGoals, setShortTermGoals] = useState<string[]>(
     createEmptyShortTermGoals
   );
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   if (!user) {
     return (
@@ -137,6 +149,81 @@ export default function UserPlanPage({
 
   const canAddShortTermGoal = shortTermGoals.length < MAX_SHORT_TERM_GOALS;
 
+  const handleReset = () => {
+    setShortTermGoals(createEmptyShortTermGoals());
+    setSaveStatus("idle");
+    setMessage(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+
+    const planCreatedDate = (data.get("createdAt") as string | null) ?? "";
+    const periodStart = (data.get("periodStart") as string | null) ?? "";
+    const periodEnd = (data.get("periodEnd") as string | null) ?? "";
+    const signature = ((data.get("signature") as string | null) ?? "").trim();
+    const signedDate = (data.get("signatureDate") as string | null) ?? "";
+
+    if (
+      !planCreatedDate ||
+      !periodStart ||
+      !periodEnd ||
+      !signature ||
+      !signedDate
+    ) {
+      setSaveStatus("failed");
+      setMessage("必須項目（日付・本人署名）を入力してください");
+      return;
+    }
+    if (periodEnd < periodStart) {
+      setSaveStatus("failed");
+      setMessage("計画期間の終了日は開始日以降にしてください");
+      return;
+    }
+
+    const cleanedShortTermGoals = shortTermGoals
+      .map((g) => g.trim())
+      .filter((g) => g.length > 0);
+
+    const payload: SupportPlanInput = {
+      user_id: user.id,
+      service_type: user.service,
+      plan_created_date: planCreatedDate,
+      period_start: periodStart,
+      period_end: periodEnd,
+      long_term_goal: emptyToNull(data.get("longTermGoal")),
+      short_term_goals: cleanedShortTermGoals,
+      support_content: emptyToNull(data.get("supportContent")),
+      user_intention: emptyToNull(data.get("userIntention")),
+      note: emptyToNull(data.get("note")),
+      user_signature: signature,
+      seal_note: emptyToNull(data.get("seal")),
+      signed_date: signedDate,
+    };
+
+    setSaveStatus("saving");
+    setMessage("保存中…");
+    try {
+      const saved = await createSupportPlan(payload);
+      setSaveStatus("saved");
+      setMessage(`保存しました（ID: ${saved.id}）`);
+      form.reset();
+      setShortTermGoals(createEmptyShortTermGoals());
+    } catch {
+      setSaveStatus("failed");
+      setMessage("保存に失敗しました。通信状況を確認してください。");
+    }
+  };
+
+  const statusClass =
+    saveStatus === "saved"
+      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+      : saveStatus === "failed"
+        ? "text-rose-700 bg-rose-50 border-rose-200"
+        : "text-slate-600 bg-slate-100 border-slate-200";
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-slate-800 text-white border-b border-slate-700">
@@ -186,10 +273,17 @@ export default function UserPlanPage({
               利用者一覧へ
             </Link>
           </div>
-          <span className="text-xs text-slate-500">v1（保存機能は準備中）</span>
+          {message && (
+            <span
+              role="status"
+              className={`text-xs rounded-full border px-3 py-1 ${statusClass}`}
+            >
+              {message}
+            </span>
+          )}
         </div>
 
-        <form className="space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <section>
             <h2 className="text-base font-semibold text-slate-700 mb-3">
               基本情報
@@ -220,6 +314,7 @@ export default function UserPlanPage({
                   id="plan-created-at"
                   name="createdAt"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -228,6 +323,7 @@ export default function UserPlanPage({
                   id="plan-period-start"
                   name="periodStart"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -236,6 +332,7 @@ export default function UserPlanPage({
                   id="plan-period-end"
                   name="periodEnd"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -320,7 +417,7 @@ export default function UserPlanPage({
                   </div>
                 )}
                 <p className="mt-2 text-[11px] text-slate-500">
-                  最大{MAX_SHORT_TERM_GOALS}件まで追加できます。
+                  最大{MAX_SHORT_TERM_GOALS}件まで追加できます。空欄は保存時に除外されます。
                 </p>
               </div>
             </div>
@@ -383,6 +480,7 @@ export default function UserPlanPage({
                   type="text"
                   autoComplete="off"
                   placeholder="利用者本人による署名"
+                  required
                   className={inputBase}
                 />
               </Field>
@@ -391,6 +489,7 @@ export default function UserPlanPage({
                   id="plan-sign-date"
                   name="signatureDate"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -423,24 +522,22 @@ export default function UserPlanPage({
 
           <div className="flex items-center justify-between flex-wrap gap-2 bg-white border border-slate-200 rounded-lg p-4">
             <p className="text-xs text-slate-500">
-              入力内容の保存機能は v2 で対応予定です。現時点では画面確認用です。
+              保存するとサーバー（PostgreSQL）に登録されます。
             </p>
             <div className="flex items-center gap-2">
               <button
-                type="reset"
-                onClick={() => setShortTermGoals(createEmptyShortTermGoals())}
+                type="button"
+                onClick={handleReset}
                 className="rounded-md border border-slate-300 bg-white text-sm px-3 py-1.5 text-slate-700 hover:bg-slate-50"
               >
                 入力クリア
               </button>
               <button
-                type="button"
-                disabled
-                aria-disabled
-                title="準備中"
-                className="rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 opacity-70 cursor-not-allowed"
+                type="submit"
+                disabled={saveStatus === "saving"}
+                className="rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                保存（準備中）
+                {saveStatus === "saving" ? "保存中…" : "保存"}
               </button>
             </div>
           </div>

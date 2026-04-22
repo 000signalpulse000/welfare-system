@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import Base, engine
-from .routers import intakes, records
+from .routers import intakes, plans, records
 
 
 @asynccontextmanager
@@ -34,3 +34,4 @@ def health():
 
 app.include_router(records.router)
 app.include_router(intakes.router)
+app.include_router(plans.router)
