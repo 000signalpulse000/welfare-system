@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -36,3 +37,20 @@ def create_plan(
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.get(
+    "/users/{user_id}/plans/latest",
+    response_model=SupportPlanRead | None,
+)
+def latest_plan(
+    user_id: str,
+    db: Session = Depends(get_db),
+) -> SupportPlan | None:
+    stmt = (
+        select(SupportPlan)
+        .where(SupportPlan.user_id == user_id)
+        .order_by(SupportPlan.created_at.desc(), SupportPlan.id.desc())
+        .limit(1)
+    )
+    return db.execute(stmt).scalars().first()

@@ -46,6 +46,23 @@ def list_records(
     return list(rows)
 
 
+@router.get(
+    "/users/{user_id}/records/latest",
+    response_model=SupportRecordRead | None,
+)
+def latest_record(
+    user_id: str,
+    db: Session = Depends(get_db),
+) -> SupportRecord | None:
+    stmt = (
+        select(SupportRecord)
+        .where(SupportRecord.user_id == user_id)
+        .order_by(SupportRecord.created_at.desc(), SupportRecord.id.desc())
+        .limit(1)
+    )
+    return db.execute(stmt).scalars().first()
+
+
 @router.delete(
     "/records/{record_id}",
     status_code=status.HTTP_204_NO_CONTENT,

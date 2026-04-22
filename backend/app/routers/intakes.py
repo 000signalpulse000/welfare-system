@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -31,3 +32,20 @@ def create_intake(
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.get(
+    "/intakes/latest",
+    response_model=IntakeRecordRead | None,
+)
+def latest_intake(
+    name: str = Query(min_length=1, max_length=128),
+    db: Session = Depends(get_db),
+) -> IntakeRecord | None:
+    stmt = (
+        select(IntakeRecord)
+        .where(IntakeRecord.name == name)
+        .order_by(IntakeRecord.created_at.desc(), IntakeRecord.id.desc())
+        .limit(1)
+    )
+    return db.execute(stmt).scalars().first()

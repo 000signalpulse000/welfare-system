@@ -235,3 +235,54 @@ export async function createServiceMeeting(
   }
   return res.json();
 }
+
+async function fetchLatest<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as T | null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export function getLatestSupportRecord(
+  userId: string,
+): Promise<BackendSupportRecord | null> {
+  return fetchLatest<BackendSupportRecord>(
+    `${API_BASE_URL}/users/${encodeURIComponent(userId)}/records/latest`,
+  );
+}
+
+export function getLatestIntakeByName(
+  name: string,
+): Promise<BackendIntakeRecord | null> {
+  return fetchLatest<BackendIntakeRecord>(
+    `${API_BASE_URL}/intakes/latest?name=${encodeURIComponent(name)}`,
+  );
+}
+
+export function getLatestSupportPlan(
+  userId: string,
+): Promise<BackendSupportPlan | null> {
+  return fetchLatest<BackendSupportPlan>(
+    `${API_BASE_URL}/users/${encodeURIComponent(userId)}/plans/latest`,
+  );
+}
+
+export function getLatestMonitoring(
+  userId: string,
+): Promise<BackendMonitoring | null> {
+  return fetchLatest<BackendMonitoring>(
+    `${API_BASE_URL}/users/${encodeURIComponent(userId)}/monitorings/latest`,
+  );
+}
+
+export function getLatestServiceMeeting(
+  userId: string,
+): Promise<BackendServiceMeeting | null> {
+  return fetchLatest<BackendServiceMeeting>(
+    `${API_BASE_URL}/users/${encodeURIComponent(userId)}/meetings/latest`,
+  );
+}

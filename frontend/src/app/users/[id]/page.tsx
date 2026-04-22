@@ -1,5 +1,17 @@
 import Link from "next/link";
 import { findUserById, statusBadge } from "@/data/users";
+import {
+  getLatestIntakeByName,
+  getLatestMonitoring,
+  getLatestServiceMeeting,
+  getLatestSupportPlan,
+  getLatestSupportRecord,
+  type BackendIntakeRecord,
+  type BackendMonitoring,
+  type BackendServiceMeeting,
+  type BackendSupportPlan,
+  type BackendSupportRecord,
+} from "@/lib/api";
 
 type FutureEntry = {
   title: string;
@@ -53,6 +65,68 @@ function InfoRow({
     <div className="grid grid-cols-3 gap-3 px-4 py-3">
       <dt className="text-sm text-slate-500">{label}</dt>
       <dd className="col-span-2 text-sm text-slate-900">{children}</dd>
+    </div>
+  );
+}
+
+function preview(value: string | null | undefined, max = 80): string {
+  if (!value) return "";
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= max) return normalized;
+  return normalized.slice(0, max) + "…";
+}
+
+function SummaryCard({
+  title,
+  icon,
+  href,
+  children,
+  empty,
+}: {
+  title: string;
+  icon: string;
+  href?: string;
+  children?: React.ReactNode;
+  empty?: boolean;
+}) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg" aria-hidden>
+            {icon}
+          </span>
+          <span className="text-sm font-semibold text-slate-800">{title}</span>
+        </div>
+        {href && (
+          <Link
+            href={href}
+            className="text-xs text-slate-500 hover:text-slate-800 hover:underline whitespace-nowrap"
+          >
+            画面を開く →
+          </Link>
+        )}
+      </div>
+      {empty ? (
+        <p className="text-xs text-slate-400">未登録</p>
+      ) : (
+        <div className="text-sm text-slate-700 space-y-1">{children}</div>
+      )}
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[5.5rem_1fr] gap-2 text-xs">
+      <span className="text-slate-500">{label}</span>
+      <span className="text-slate-800 break-words">{children}</span>
     </div>
   );
 }
@@ -118,6 +192,20 @@ export default async function UserDetailPage({
       </div>
     );
   }
+
+  const lowerId = user.id.toLowerCase();
+  const results = await Promise.all([
+    getLatestSupportRecord(user.id),
+    getLatestIntakeByName(user.name),
+    getLatestSupportPlan(user.id),
+    getLatestMonitoring(user.id),
+    getLatestServiceMeeting(user.id),
+  ] as const);
+  const latestRecord = results[0] as BackendSupportRecord | null;
+  const latestIntake = results[1] as BackendIntakeRecord | null;
+  const latestPlan = results[2] as BackendSupportPlan | null;
+  const latestMonitoring = results[3] as BackendMonitoring | null;
+  const latestMeeting = results[4] as BackendServiceMeeting | null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -193,6 +281,143 @@ export default async function UserDetailPage({
               <span className="tabular-nums">{user.recipientCertExpiry}</span>
             </InfoRow>
           </dl>
+        </section>
+
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-base font-semibold text-slate-700">
+              最新保存データ
+            </h2>
+            <span className="text-xs text-slate-500">
+              各機能で最後に保存された内容の要約
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <SummaryCard
+              title="支援記録"
+              icon="📒"
+              href={`/users/${lowerId}/records`}
+              empty={!latestRecord}
+            >
+              {latestRecord && (
+                <>
+                  <SummaryRow label="記録日">
+                    <span className="tabular-nums">
+                      {latestRecord.record_date}
+                    </span>
+                  </SummaryRow>
+                  <SummaryRow label="本文">
+                    {preview(latestRecord.body, 100) || "—"}
+                  </SummaryRow>
+                </>
+              )}
+            </SummaryCard>
+
+            <SummaryCard title="インテイク" icon="📋" empty={!latestIntake}>
+              {latestIntake && (
+                <>
+                  <SummaryRow label="希望サービス">
+                    {latestIntake.desired_service}
+                  </SummaryRow>
+                  <SummaryRow label="相談経路">
+                    {latestIntake.consultation_route ?? "—"}
+                  </SummaryRow>
+                  <SummaryRow label="相談内容">
+                    {preview(latestIntake.consultation_memo, 100) || "—"}
+                  </SummaryRow>
+                </>
+              )}
+            </SummaryCard>
+
+            <SummaryCard
+              title="個別支援計画"
+              icon="📝"
+              href={`/users/${lowerId}/plan`}
+              empty={!latestPlan}
+            >
+              {latestPlan && (
+                <>
+                  <SummaryRow label="作成日">
+                    <span className="tabular-nums">
+                      {latestPlan.plan_created_date}
+                    </span>
+                  </SummaryRow>
+                  <SummaryRow label="計画期間">
+                    <span className="tabular-nums">
+                      {latestPlan.period_start} 〜 {latestPlan.period_end}
+                    </span>
+                  </SummaryRow>
+                  <SummaryRow label="長期目標">
+                    {preview(latestPlan.long_term_goal, 80) || "—"}
+                  </SummaryRow>
+                  <SummaryRow label="短期目標">
+                    {latestPlan.short_term_goals.length > 0
+                      ? `${latestPlan.short_term_goals.length} 件: ${preview(
+                          latestPlan.short_term_goals.join(" / "),
+                          60,
+                        )}`
+                      : "—"}
+                  </SummaryRow>
+                </>
+              )}
+            </SummaryCard>
+
+            <SummaryCard
+              title="モニタリング"
+              icon="📊"
+              href={`/users/${lowerId}/monitoring`}
+              empty={!latestMonitoring}
+            >
+              {latestMonitoring && (
+                <>
+                  <SummaryRow label="実施日">
+                    <span className="tabular-nums">
+                      {latestMonitoring.monitoring_date}
+                    </span>
+                  </SummaryRow>
+                  <SummaryRow label="長期目標">
+                    {latestMonitoring.long_term_status ?? "—"}
+                  </SummaryRow>
+                  <SummaryRow label="短期目標">
+                    {latestMonitoring.short_term_status ?? "—"}
+                  </SummaryRow>
+                  <SummaryRow label="今後の方針">
+                    {preview(
+                      latestMonitoring.next_plan ??
+                        latestMonitoring.user_condition,
+                      80,
+                    ) || "—"}
+                  </SummaryRow>
+                </>
+              )}
+            </SummaryCard>
+
+            <SummaryCard
+              title="サービス担当者会議"
+              icon="🧭"
+              href={`/users/${lowerId}/meeting`}
+              empty={!latestMeeting}
+            >
+              {latestMeeting && (
+                <>
+                  <SummaryRow label="開催日">
+                    <span className="tabular-nums">
+                      {latestMeeting.meeting_date}
+                    </span>
+                  </SummaryRow>
+                  <SummaryRow label="開催場所">
+                    {latestMeeting.meeting_place}
+                  </SummaryRow>
+                  <SummaryRow label="議題／決定">
+                    {preview(
+                      latestMeeting.agenda ?? latestMeeting.decision,
+                      100,
+                    ) || "—"}
+                  </SummaryRow>
+                </>
+              )}
+            </SummaryCard>
+          </div>
         </section>
 
         <section>

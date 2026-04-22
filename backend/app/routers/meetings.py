@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -33,3 +34,20 @@ def create_meeting(
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.get(
+    "/users/{user_id}/meetings/latest",
+    response_model=ServiceMeetingRead | None,
+)
+def latest_meeting(
+    user_id: str,
+    db: Session = Depends(get_db),
+) -> ServiceMeeting | None:
+    stmt = (
+        select(ServiceMeeting)
+        .where(ServiceMeeting.user_id == user_id)
+        .order_by(ServiceMeeting.created_at.desc(), ServiceMeeting.id.desc())
+        .limit(1)
+    )
+    return db.execute(stmt).scalars().first()

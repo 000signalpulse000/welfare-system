@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -40,3 +41,20 @@ def create_monitoring(
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.get(
+    "/users/{user_id}/monitorings/latest",
+    response_model=MonitoringRead | None,
+)
+def latest_monitoring(
+    user_id: str,
+    db: Session = Depends(get_db),
+) -> Monitoring | None:
+    stmt = (
+        select(Monitoring)
+        .where(Monitoring.user_id == user_id)
+        .order_by(Monitoring.created_at.desc(), Monitoring.id.desc())
+        .limit(1)
+    )
+    return db.execute(stmt).scalars().first()
