@@ -1,0 +1,26 @@
+﻿services:
+  db:
+    image: postgres:16
+    container_name: welfare_db
+    environment:
+      POSTGRES_DB: welfare
+      POSTGRES_USER: welfare_user
+      POSTGRES_PASSWORD: welfare_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - welfare_pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    container_name: welfare_backend
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+
+volumes:
+  welfare_pgdata:
