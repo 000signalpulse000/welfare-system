@@ -1,0 +1,388 @@
+import Link from "next/link";
+import { findUserById } from "@/data/users";
+
+function Field({
+  id,
+  label,
+  required,
+  children,
+  hint,
+  full,
+}: {
+  id?: string;
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+  hint?: string;
+  full?: boolean;
+}) {
+  return (
+    <div className={full ? "md:col-span-12" : "md:col-span-6"}>
+      <label
+        htmlFor={id}
+        className="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1"
+      >
+        <span>{label}</span>
+        {required && (
+          <span className="text-[10px] text-rose-600 font-semibold">必須</span>
+        )}
+      </label>
+      {children}
+      {hint && <p className="mt-1 text-[11px] text-slate-500">{hint}</p>}
+    </div>
+  );
+}
+
+const inputBase =
+  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-400";
+
+const progressOptions = [
+  "達成",
+  "概ね達成",
+  "一部達成",
+  "未達成",
+  "計画見直しが必要",
+] as const;
+
+export default async function UserMonitoringPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const user = findUserById(id);
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900">
+        <header className="bg-slate-800 text-white border-b border-slate-700">
+          <div className="max-w-6xl mx-auto px-6 py-6">
+            <div className="flex items-center gap-2 text-xs text-slate-400 mb-2">
+              <Link href="/" className="hover:text-white hover:underline">
+                ホーム
+              </Link>
+              <span aria-hidden>/</span>
+              <Link
+                href="/users"
+                className="hover:text-white hover:underline"
+              >
+                利用者一覧
+              </Link>
+              <span aria-hidden>/</span>
+              <span className="text-slate-200">モニタリング</span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-wide">モニタリング</h1>
+          </div>
+        </header>
+
+        <main className="max-w-6xl mx-auto px-6 py-10">
+          <section className="bg-white border border-slate-200 rounded-lg p-8 text-center">
+            <div className="text-4xl mb-3" aria-hidden>
+              🔍
+            </div>
+            <h2 className="text-lg font-semibold text-slate-800 mb-2">
+              利用者が見つかりません
+            </h2>
+            <p className="text-sm text-slate-500 mb-6">
+              指定されたID「{id}」に該当する利用者は登録されていません。
+            </p>
+            <Link
+              href="/users"
+              className="inline-flex items-center gap-1 rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700"
+            >
+              <span aria-hidden>←</span>
+              利用者一覧へ戻る
+            </Link>
+          </section>
+        </main>
+
+        <footer className="border-t border-slate-200 bg-white">
+          <div className="max-w-6xl mx-auto px-6 py-4 text-xs text-slate-500 flex items-center justify-between">
+            <span>© 2026 福祉業務システム</span>
+            <span>内部業務利用</span>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
+  const userDetailHref = `/users/${user.id.toLowerCase()}`;
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="bg-slate-800 text-white border-b border-slate-700">
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          <div className="flex items-center gap-2 text-xs text-slate-400 mb-2 flex-wrap">
+            <Link href="/" className="hover:text-white hover:underline">
+              ホーム
+            </Link>
+            <span aria-hidden>/</span>
+            <Link href="/users" className="hover:text-white hover:underline">
+              利用者一覧
+            </Link>
+            <span aria-hidden>/</span>
+            <Link
+              href={userDetailHref}
+              className="hover:text-white hover:underline"
+            >
+              {user.name}
+            </Link>
+            <span aria-hidden>/</span>
+            <span className="text-slate-200">モニタリング</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-wide">モニタリング</h1>
+          <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+            利用者の状況変化と目標進捗を確認する画面
+          </p>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3 text-sm">
+            <Link
+              href={userDetailHref}
+              className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
+            >
+              <span aria-hidden>←</span>
+              利用者詳細へ戻る
+            </Link>
+            <span className="text-slate-300" aria-hidden>
+              |
+            </span>
+            <Link
+              href="/users"
+              className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
+            >
+              利用者一覧へ
+            </Link>
+          </div>
+          <span className="text-xs text-slate-500">v1（保存機能は準備中）</span>
+        </div>
+
+        <form className="space-y-6">
+          <section>
+            <h2 className="text-base font-semibold text-slate-700 mb-3">
+              基本情報
+            </h2>
+            <div className="bg-white border border-slate-200 rounded-lg p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+              <Field id="mon-user" label="利用者名">
+                <input
+                  id="mon-user"
+                  name="userName"
+                  type="text"
+                  readOnly
+                  defaultValue={user.name}
+                  className={inputBase + " bg-slate-50 text-slate-700"}
+                />
+              </Field>
+              <Field id="mon-service" label="サービス種別">
+                <input
+                  id="mon-service"
+                  name="service"
+                  type="text"
+                  readOnly
+                  defaultValue={user.service}
+                  className={inputBase + " bg-slate-50 text-slate-700"}
+                />
+              </Field>
+              <Field id="mon-date" label="モニタリング実施日" required>
+                <input
+                  id="mon-date"
+                  name="monitoringDate"
+                  type="date"
+                  className={inputBase + " tabular-nums"}
+                />
+              </Field>
+              <Field id="mon-staff" label="実施職員">
+                <input
+                  id="mon-staff"
+                  name="monitoringStaff"
+                  type="text"
+                  readOnly
+                  defaultValue={user.staff}
+                  className={inputBase + " bg-slate-50 text-slate-700"}
+                />
+              </Field>
+              <Field id="mon-period-start" label="評価対象期間（開始日）" required>
+                <input
+                  id="mon-period-start"
+                  name="periodStart"
+                  type="date"
+                  className={inputBase + " tabular-nums"}
+                />
+              </Field>
+              <Field id="mon-period-end" label="評価対象期間（終了日）" required>
+                <input
+                  id="mon-period-end"
+                  name="periodEnd"
+                  type="date"
+                  className={inputBase + " tabular-nums"}
+                />
+              </Field>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold text-slate-700 mb-3">
+              目標進捗
+            </h2>
+            <div className="bg-white border border-slate-200 rounded-lg p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+              <Field id="mon-long-status" label="長期目標の進捗（区分）">
+                <select
+                  id="mon-long-status"
+                  name="longTermStatus"
+                  defaultValue=""
+                  className={inputBase}
+                >
+                  <option value="" disabled>
+                    選択してください
+                  </option>
+                  {progressOptions.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field id="mon-short-status" label="短期目標の進捗（区分）">
+                <select
+                  id="mon-short-status"
+                  name="shortTermStatus"
+                  defaultValue=""
+                  className={inputBase}
+                >
+                  <option value="" disabled>
+                    選択してください
+                  </option>
+                  {progressOptions.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                id="mon-long-detail"
+                label="長期目標の進捗"
+                full
+                hint="計画に掲げた長期目標に対する進捗・変化を具体的に記載します。"
+              >
+                <textarea
+                  id="mon-long-detail"
+                  name="longTermProgress"
+                  rows={4}
+                  placeholder="例: 日中活動への参加が安定。生活リズムが整ってきている。"
+                  className={inputBase + " leading-relaxed"}
+                />
+              </Field>
+              <Field
+                id="mon-short-detail"
+                label="短期目標の進捗"
+                full
+                hint="各短期目標に対する達成状況・残課題を記載します。"
+              >
+                <textarea
+                  id="mon-short-detail"
+                  name="shortTermProgress"
+                  rows={4}
+                  placeholder="例: 朝の通所が週3回定着。PC訓練は基本操作を習得。"
+                  className={inputBase + " leading-relaxed"}
+                />
+              </Field>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold text-slate-700 mb-3">
+              利用者の状況と今後の方針
+            </h2>
+            <div className="bg-white border border-slate-200 rounded-lg p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+              <Field
+                id="mon-condition"
+                label="本人の様子"
+                full
+                hint="体調・気分・人間関係・生活面など、期間中に観察された本人の様子を記載します。"
+              >
+                <textarea
+                  id="mon-condition"
+                  name="userCondition"
+                  rows={4}
+                  placeholder="例: 体調安定。他利用者と挨拶を交わすなど関わりが広がってきている。"
+                  className={inputBase + " leading-relaxed"}
+                />
+              </Field>
+              <Field
+                id="mon-issues"
+                label="課題・留意点"
+                full
+                hint="支援上のリスク・今後注意して観察すべき点を記載します。"
+              >
+                <textarea
+                  id="mon-issues"
+                  name="issues"
+                  rows={4}
+                  placeholder="例: 疲労蓄積時に欠席傾向。通所ペースの継続配慮が必要。"
+                  className={inputBase + " leading-relaxed"}
+                />
+              </Field>
+              <Field
+                id="mon-next-plan"
+                label="今後の支援方針"
+                full
+                hint="次期に向けた支援の方向性・強化点・変更点を記載します。"
+              >
+                <textarea
+                  id="mon-next-plan"
+                  name="nextPlan"
+                  rows={4}
+                  placeholder="例: 通所日数は現状維持。作業種目を段階的に広げていく。"
+                  className={inputBase + " leading-relaxed"}
+                />
+              </Field>
+              <Field id="mon-note" label="備考" full>
+                <textarea
+                  id="mon-note"
+                  name="note"
+                  rows={3}
+                  placeholder="例: 家族・関係機関との情報共有事項 など"
+                  className={inputBase + " leading-relaxed"}
+                />
+              </Field>
+            </div>
+          </section>
+
+          <div className="flex items-center justify-between flex-wrap gap-2 bg-white border border-slate-200 rounded-lg p-4">
+            <p className="text-xs text-slate-500">
+              入力内容の保存機能は v2 で対応予定です。現時点では画面確認用です。
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="reset"
+                className="rounded-md border border-slate-300 bg-white text-sm px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+              >
+                入力クリア
+              </button>
+              <button
+                type="button"
+                disabled
+                aria-disabled
+                title="準備中"
+                className="rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 opacity-70 cursor-not-allowed"
+              >
+                保存（準備中）
+              </button>
+            </div>
+          </div>
+        </form>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="max-w-6xl mx-auto px-6 py-4 text-xs text-slate-500 flex items-center justify-between">
+          <span>© 2026 福祉業務システム</span>
+          <span>内部業務利用</span>
+        </div>
+      </footer>
+    </div>
+  );
+}
