@@ -82,3 +82,48 @@ class SupportPlanRead(BaseModel):
     signed_date: date
     created_at: datetime
     updated_at: datetime
+
+
+class MonitoringCreate(BaseModel):
+    user_id: str = Field(min_length=1, max_length=32)
+    service_type: str = Field(min_length=1, max_length=64)
+    monitoring_date: date
+    staff_name: str | None = Field(default=None, max_length=128)
+    period_start: date
+    period_end: date
+    long_term_status: str | None = Field(default=None, max_length=32)
+    short_term_status: str | None = Field(default=None, max_length=32)
+    long_term_progress: str | None = None
+    short_term_progress: str | None = None
+    user_condition: str | None = None
+    issues: str | None = None
+    next_plan: str | None = None
+    note: str | None = None
+    user_signature: str = Field(min_length=1, max_length=128)
+    seal_note: str | None = Field(default=None, max_length=255)
+    signed_date: date
+
+
+class MonitoringRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: str
+    service_type: str
+    monitoring_date: date
+    staff_name: str | None
+    period_start: date
+    period_end: date
+    long_term_status: str | None
+    short_term_status: str | None
+    long_term_progress: str | None
+    short_term_progress: str | None
+    user_condition: str | None
+    issues: str | None
+    next_plan: str | None
+    note: str | None
+    user_signature: str
+    seal_note: str | None
+    signed_date: date
+    created_at: datetime
+    updated_at: datetime

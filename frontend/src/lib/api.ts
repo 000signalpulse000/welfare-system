@@ -135,3 +135,60 @@ export async function createSupportPlan(
   }
   return res.json();
 }
+
+export type BackendMonitoring = {
+  id: number;
+  user_id: string;
+  service_type: string;
+  monitoring_date: string;
+  staff_name: string | null;
+  period_start: string;
+  period_end: string;
+  long_term_status: string | null;
+  short_term_status: string | null;
+  long_term_progress: string | null;
+  short_term_progress: string | null;
+  user_condition: string | null;
+  issues: string | null;
+  next_plan: string | null;
+  note: string | null;
+  user_signature: string;
+  seal_note: string | null;
+  signed_date: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MonitoringInput = {
+  user_id: string;
+  service_type: string;
+  monitoring_date: string;
+  staff_name?: string | null;
+  period_start: string;
+  period_end: string;
+  long_term_status?: string | null;
+  short_term_status?: string | null;
+  long_term_progress?: string | null;
+  short_term_progress?: string | null;
+  user_condition?: string | null;
+  issues?: string | null;
+  next_plan?: string | null;
+  note?: string | null;
+  user_signature: string;
+  seal_note?: string | null;
+  signed_date: string;
+};
+
+export async function createMonitoring(
+  input: MonitoringInput,
+): Promise<BackendMonitoring> {
+  const res = await fetch(`${API_BASE_URL}/monitorings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`save failed: ${res.status}`);
+  }
+  return res.json();
+}

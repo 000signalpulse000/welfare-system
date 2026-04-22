@@ -84,3 +84,37 @@ class SupportPlan(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class Monitoring(Base):
+    __tablename__ = "monitorings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    service_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    monitoring_date: Mapped[date] = mapped_column(Date, nullable=False)
+    staff_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    long_term_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    short_term_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    long_term_progress: Mapped[str | None] = mapped_column(Text, nullable=True)
+    short_term_progress: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_condition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    issues: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_plan: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_signature: Mapped[str] = mapped_column(String(128), nullable=False)
+    seal_note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    signed_date: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

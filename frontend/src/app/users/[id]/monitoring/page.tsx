@@ -1,5 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { use, useRef, useState } from "react";
 import { findUserById } from "@/data/users";
+import { createMonitoring, MonitoringInput } from "@/lib/api";
+
+type SaveStatus = "idle" | "saving" | "saved" | "failed";
 
 function Field({
   id,
@@ -44,13 +50,23 @@ const progressOptions = [
   "計画見直しが必要",
 ] as const;
 
-export default async function UserMonitoringPage({
+function emptyToNull(v: FormDataEntryValue | null): string | null {
+  if (v === null) return null;
+  const s = typeof v === "string" ? v.trim() : "";
+  return s.length > 0 ? s : null;
+}
+
+export default function UserMonitoringPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id } = use(params);
   const user = findUserById(id);
+
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   if (!user) {
     return (
@@ -108,6 +124,80 @@ export default async function UserMonitoringPage({
 
   const userDetailHref = `/users/${user.id.toLowerCase()}`;
 
+  const handleReset = () => {
+    formRef.current?.reset();
+    setSaveStatus("idle");
+    setMessage(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+
+    const monitoringDate = (data.get("monitoringDate") as string | null) ?? "";
+    const periodStart = (data.get("periodStart") as string | null) ?? "";
+    const periodEnd = (data.get("periodEnd") as string | null) ?? "";
+    const signature = ((data.get("signature") as string | null) ?? "").trim();
+    const signedDate = (data.get("signatureDate") as string | null) ?? "";
+
+    if (
+      !monitoringDate ||
+      !periodStart ||
+      !periodEnd ||
+      !signature ||
+      !signedDate
+    ) {
+      setSaveStatus("failed");
+      setMessage("必須項目（日付・本人署名）を入力してください");
+      return;
+    }
+    if (periodEnd < periodStart) {
+      setSaveStatus("failed");
+      setMessage("評価対象期間の終了日は開始日以降にしてください");
+      return;
+    }
+
+    const payload: MonitoringInput = {
+      user_id: user.id,
+      service_type: user.service,
+      monitoring_date: monitoringDate,
+      staff_name: emptyToNull(data.get("monitoringStaff")) ?? user.staff,
+      period_start: periodStart,
+      period_end: periodEnd,
+      long_term_status: emptyToNull(data.get("longTermStatus")),
+      short_term_status: emptyToNull(data.get("shortTermStatus")),
+      long_term_progress: emptyToNull(data.get("longTermProgress")),
+      short_term_progress: emptyToNull(data.get("shortTermProgress")),
+      user_condition: emptyToNull(data.get("userCondition")),
+      issues: emptyToNull(data.get("issues")),
+      next_plan: emptyToNull(data.get("nextPlan")),
+      note: emptyToNull(data.get("note")),
+      user_signature: signature,
+      seal_note: emptyToNull(data.get("seal")),
+      signed_date: signedDate,
+    };
+
+    setSaveStatus("saving");
+    setMessage("保存中…");
+    try {
+      const saved = await createMonitoring(payload);
+      setSaveStatus("saved");
+      setMessage(`保存しました（ID: ${saved.id}）`);
+      form.reset();
+    } catch {
+      setSaveStatus("failed");
+      setMessage("保存に失敗しました。通信状況を確認してください。");
+    }
+  };
+
+  const statusClass =
+    saveStatus === "saved"
+      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+      : saveStatus === "failed"
+        ? "text-rose-700 bg-rose-50 border-rose-200"
+        : "text-slate-600 bg-slate-100 border-slate-200";
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-slate-800 text-white border-b border-slate-700">
@@ -157,10 +247,17 @@ export default async function UserMonitoringPage({
               利用者一覧へ
             </Link>
           </div>
-          <span className="text-xs text-slate-500">v1（保存機能は準備中）</span>
+          {message && (
+            <span
+              role="status"
+              className={`text-xs rounded-full border px-3 py-1 ${statusClass}`}
+            >
+              {message}
+            </span>
+          )}
         </div>
 
-        <form className="space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <section>
             <h2 className="text-base font-semibold text-slate-700 mb-3">
               基本情報
@@ -191,6 +288,7 @@ export default async function UserMonitoringPage({
                   id="mon-date"
                   name="monitoringDate"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -209,6 +307,7 @@ export default async function UserMonitoringPage({
                   id="mon-period-start"
                   name="periodStart"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -217,6 +316,7 @@ export default async function UserMonitoringPage({
                   id="mon-period-end"
                   name="periodEnd"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -235,9 +335,7 @@ export default async function UserMonitoringPage({
                   defaultValue=""
                   className={inputBase}
                 >
-                  <option value="" disabled>
-                    選択してください
-                  </option>
+                  <option value="">（未選択）</option>
                   {progressOptions.map((o) => (
                     <option key={o} value={o}>
                       {o}
@@ -252,9 +350,7 @@ export default async function UserMonitoringPage({
                   defaultValue=""
                   className={inputBase}
                 >
-                  <option value="" disabled>
-                    選択してください
-                  </option>
+                  <option value="">（未選択）</option>
                   {progressOptions.map((o) => (
                     <option key={o} value={o}>
                       {o}
@@ -364,6 +460,7 @@ export default async function UserMonitoringPage({
                   type="text"
                   autoComplete="off"
                   placeholder="利用者本人による署名"
+                  required
                   className={inputBase}
                 />
               </Field>
@@ -372,6 +469,7 @@ export default async function UserMonitoringPage({
                   id="mon-sign-date"
                   name="signatureDate"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -404,23 +502,22 @@ export default async function UserMonitoringPage({
 
           <div className="flex items-center justify-between flex-wrap gap-2 bg-white border border-slate-200 rounded-lg p-4">
             <p className="text-xs text-slate-500">
-              入力内容の保存機能は v2 で対応予定です。現時点では画面確認用です。
+              保存するとサーバー（PostgreSQL）に登録されます。
             </p>
             <div className="flex items-center gap-2">
               <button
-                type="reset"
+                type="button"
+                onClick={handleReset}
                 className="rounded-md border border-slate-300 bg-white text-sm px-3 py-1.5 text-slate-700 hover:bg-slate-50"
               >
                 入力クリア
               </button>
               <button
-                type="button"
-                disabled
-                aria-disabled
-                title="準備中"
-                className="rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 opacity-70 cursor-not-allowed"
+                type="submit"
+                disabled={saveStatus === "saving"}
+                className="rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                保存（準備中）
+                {saveStatus === "saving" ? "保存中…" : "保存"}
               </button>
             </div>
           </div>
