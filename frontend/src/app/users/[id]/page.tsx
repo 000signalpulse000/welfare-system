@@ -6,6 +6,7 @@ type FutureEntry = {
   description: string;
   icon: string;
   note?: string;
+  slug?: "records";
 };
 
 const futureEntries: FutureEntry[] = [
@@ -24,6 +25,7 @@ const futureEntries: FutureEntry[] = [
     description: "日々の支援内容と特記事項を記録",
     icon: "📒",
     note: "定型文チェック入力・定型文追加保存対応予定",
+    slug: "records",
   },
   {
     title: "モニタリング",
@@ -193,11 +195,11 @@ export default async function UserDetailPage({
             <span className="text-xs text-slate-500">v1 実装予定</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {futureEntries.map((entry) => (
-              <div
-                key={entry.title}
-                className="flex flex-col gap-3 bg-white border border-slate-200 rounded-lg p-5 opacity-90"
-              >
+            {futureEntries.map((entry) => {
+              const href = entry.slug
+                ? `/users/${user.id.toLowerCase()}/${entry.slug}`
+                : null;
+              const inner = (
                 <div className="flex items-start gap-3">
                   <span className="text-2xl" aria-hidden>
                     {entry.icon}
@@ -208,7 +210,7 @@ export default async function UserDetailPage({
                         {entry.title}
                       </span>
                       <span className="text-xs text-slate-500 whitespace-nowrap">
-                        準備中
+                        {href ? "開く →" : "準備中"}
                       </span>
                     </div>
                     <p className="text-sm text-slate-500 leading-relaxed mt-1">
@@ -221,8 +223,28 @@ export default async function UserDetailPage({
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+
+              if (href) {
+                return (
+                  <Link
+                    key={entry.title}
+                    href={href}
+                    className="flex flex-col gap-3 bg-white border border-slate-200 rounded-lg p-5 shadow-sm hover:shadow-md hover:border-slate-400 hover:-translate-y-0.5 transition-all"
+                  >
+                    {inner}
+                  </Link>
+                );
+              }
+              return (
+                <div
+                  key={entry.title}
+                  className="flex flex-col gap-3 bg-white border border-slate-200 rounded-lg p-5 opacity-90"
+                >
+                  {inner}
+                </div>
+              );
+            })}
           </div>
         </section>
       </main>
