@@ -371,6 +371,56 @@ export default function UserPlanPage({
             </div>
           </section>
 
+          <section>
+            <h2 className="text-base font-semibold text-slate-700 mb-3">
+              本人確認
+            </h2>
+            <div className="bg-white border border-slate-200 rounded-lg p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+              <Field id="plan-signature" label="本人署名" required>
+                <input
+                  id="plan-signature"
+                  name="signature"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="利用者本人による署名"
+                  className={inputBase}
+                />
+              </Field>
+              <Field id="plan-sign-date" label="署名日" required>
+                <input
+                  id="plan-sign-date"
+                  name="signatureDate"
+                  type="date"
+                  className={inputBase + " tabular-nums"}
+                />
+              </Field>
+              <Field
+                id="plan-seal"
+                label="捺印"
+                full
+                hint="紙面運用時は右の枠内に押印してください。"
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    id="plan-seal"
+                    name="seal"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="（備考：押印済み／後日 など）"
+                    className={inputBase + " flex-1"}
+                  />
+                  <div
+                    role="img"
+                    aria-label="捺印欄"
+                    className="shrink-0 flex items-center justify-center h-16 w-16 rounded-md border-2 border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400 select-none"
+                  >
+                    印
+                  </div>
+                </div>
+              </Field>
+            </div>
+          </section>
+
           <div className="flex items-center justify-between flex-wrap gap-2 bg-white border border-slate-200 rounded-lg p-4">
             <p className="text-xs text-slate-500">
               入力内容の保存機能は v2 で対応予定です。現時点では画面確認用です。
