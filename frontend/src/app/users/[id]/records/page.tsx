@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { findUserById } from "@/data/users";
+import {
+  BackendSupportRecord,
+  createSupportRecord,
+  deleteSupportRecord,
+  listSupportRecords,
+} from "@/lib/api";
 
 type Phrase = {
   id: string;
@@ -10,15 +16,11 @@ type Phrase = {
   text: string;
 };
 
-type SavedRecord = {
-  id: string;
-  createdAt: string;
-  body: string;
-};
+type SaveStatus = "idle" | "saving" | "saved" | "failed";
+type ListStatus = "idle" | "loading" | "loaded" | "failed";
 
 const STORAGE_KEY = "welfare:support-phrases/v1";
 const DRAFT_KEY_PREFIX = "welfare:support-record-draft:";
-const RECORDS_KEY_PREFIX = "welfare:support-records:";
 
 const SAMPLE_PHRASES: Phrase[] = [
   { id: "p-sample-1", name: "PC訓練", text: "PC訓練" },
@@ -37,6 +39,20 @@ function createId(): string {
   return `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function todayIsoDate(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return `${d.toLocaleDateString("ja-JP")} ${d.toLocaleTimeString("ja-JP")}`;
+}
+
 export default function SupportRecordPage({
   params,
 }: {
@@ -49,19 +65,21 @@ export default function SupportRecordPage({
   const [loaded, setLoaded] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [recordText, setRecordText] = useState("");
+  const [recordDate, setRecordDate] = useState<string>(todayIsoDate);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<Date | null>(null);
   const [newName, setNewName] = useState("");
   const [newText, setNewText] = useState("");
   const [lastMessage, setLastMessage] = useState<string | null>(null);
 
-  const [savedRecords, setSavedRecords] = useState<SavedRecord[]>([]);
-  const [recordsLoaded, setRecordsLoaded] = useState(false);
+  const [savedRecords, setSavedRecords] = useState<BackendSupportRecord[]>([]);
+  const [listStatus, setListStatus] = useState<ListStatus>("idle");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const draftKey = user ? `${DRAFT_KEY_PREFIX}${user.id}` : null;
-  const recordsKey = user ? `${RECORDS_KEY_PREFIX}${user.id}` : null;
+  const userId = user?.id ?? null;
 
   useEffect(() => {
     try {
@@ -118,38 +136,25 @@ export default function SupportRecordPage({
     }
   }, [recordText, draftKey, draftLoaded]);
 
-  useEffect(() => {
-    if (!recordsKey) return;
-    setRecordsLoaded(false);
-    try {
-      const raw = localStorage.getItem(recordsKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as SavedRecord[];
-        if (Array.isArray(parsed)) {
-          setSavedRecords(parsed);
-          setRecordsLoaded(true);
-          return;
-        }
+  const reloadSavedRecords = useCallback(
+    async (targetUserId: string) => {
+      setListStatus("loading");
+      try {
+        const rows = await listSupportRecords(targetUserId);
+        setSavedRecords(rows);
+        setListStatus("loaded");
+      } catch {
+        setSavedRecords([]);
+        setListStatus("failed");
       }
-    } catch {
-      // fall through
-    }
-    setSavedRecords([]);
-    setRecordsLoaded(true);
-  }, [recordsKey]);
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (!recordsKey || !recordsLoaded) return;
-    try {
-      if (savedRecords.length === 0) {
-        localStorage.removeItem(recordsKey);
-      } else {
-        localStorage.setItem(recordsKey, JSON.stringify(savedRecords));
-      }
-    } catch {
-      // ignore
-    }
-  }, [savedRecords, recordsKey, recordsLoaded]);
+    if (!userId) return;
+    reloadSavedRecords(userId);
+  }, [userId, reloadSavedRecords]);
 
   const toggleChecked = (id: string) => {
     setCheckedIds((prev) => {
@@ -196,40 +201,52 @@ export default function SupportRecordPage({
     setLastMessage(`「${phrase.name}」を追加しました`);
   };
 
-  const handleSaveRecord = () => {
+  const handleSaveRecord = async () => {
+    if (!userId) return;
     const body = recordText.trim();
     if (body.length === 0) {
       setLastMessage("記録が空のため保存できません");
       return;
     }
-    const record: SavedRecord = {
-      id: createId().replace(/^p-/, "r-"),
-      createdAt: new Date().toISOString(),
-      body,
-    };
-    setSavedRecords((prev) => [record, ...prev]);
-    setRecordText("");
-    if (draftKey) {
-      try {
-        localStorage.removeItem(draftKey);
-      } catch {
-        // ignore
-      }
+    if (!recordDate) {
+      setLastMessage("記録日を入力してください");
+      return;
     }
-    setDraftSavedAt(null);
-    setLastMessage("記録を保存しました");
+    setSaveStatus("saving");
+    setLastMessage("保存中…");
+    try {
+      await createSupportRecord({
+        user_id: userId,
+        record_date: recordDate,
+        body,
+      });
+      setRecordText("");
+      if (draftKey) {
+        try {
+          localStorage.removeItem(draftKey);
+        } catch {
+          // ignore
+        }
+      }
+      setDraftSavedAt(null);
+      setSaveStatus("saved");
+      setLastMessage("記録を保存しました");
+      await reloadSavedRecords(userId);
+    } catch {
+      setSaveStatus("failed");
+      setLastMessage("保存に失敗しました。通信状況を確認してください。");
+    }
   };
 
-  const handleLoadRecord = (id: string) => {
-    const target = savedRecords.find((r) => r.id === id);
+  const handleLoadRecord = (recordId: number) => {
+    const target = savedRecords.find((r) => r.id === recordId);
     if (!target) return;
     if (recordText.trim().length > 0) {
-      const ok = window.confirm(
-        "現在の入力内容を破棄して読み込みますか？",
-      );
+      const ok = window.confirm("現在の入力内容を破棄して読み込みますか？");
       if (!ok) return;
     }
     setRecordText(target.body);
+    if (target.record_date) setRecordDate(target.record_date);
     setLastMessage("保存済み記録を読み込みました");
     requestAnimationFrame(() => {
       const ta = textareaRef.current;
@@ -240,13 +257,19 @@ export default function SupportRecordPage({
     });
   };
 
-  const handleDeleteRecord = (id: string) => {
-    const target = savedRecords.find((r) => r.id === id);
+  const handleDeleteRecord = async (recordId: number) => {
+    if (!userId) return;
+    const target = savedRecords.find((r) => r.id === recordId);
     if (!target) return;
     const ok = window.confirm("この保存済み記録を削除しますか？");
     if (!ok) return;
-    setSavedRecords((prev) => prev.filter((r) => r.id !== id));
-    setLastMessage("保存済み記録を削除しました");
+    try {
+      await deleteSupportRecord(recordId);
+      setLastMessage("保存済み記録を削除しました");
+      await reloadSavedRecords(userId);
+    } catch {
+      setLastMessage("削除に失敗しました。通信状況を確認してください。");
+    }
   };
 
   const handleDeletePhrase = (id: string) => {
@@ -314,6 +337,13 @@ export default function SupportRecordPage({
       </div>
     );
   }
+
+  const listBadge =
+    listStatus === "loading"
+      ? "読み込み中…"
+      : listStatus === "failed"
+        ? "取得に失敗しました"
+        : `${savedRecords.length} 件（この利用者のみ）`;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -387,6 +417,21 @@ export default function SupportRecordPage({
                 {recordText.length} 文字
               </span>
             </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <label
+                htmlFor="record-date"
+                className="text-xs font-medium text-slate-600"
+              >
+                記録日
+              </label>
+              <input
+                id="record-date"
+                type="date"
+                value={recordDate}
+                onChange={(e) => setRecordDate(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm bg-white tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-400"
+              />
+            </div>
             <textarea
               ref={textareaRef}
               value={recordText}
@@ -405,31 +450,35 @@ export default function SupportRecordPage({
                 )}
               </p>
               <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setRecordText("");
-                  if (draftKey) {
-                    try {
-                      localStorage.removeItem(draftKey);
-                    } catch {
-                      // ignore
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecordText("");
+                    if (draftKey) {
+                      try {
+                        localStorage.removeItem(draftKey);
+                      } catch {
+                        // ignore
+                      }
                     }
-                  }
-                  setDraftSavedAt(null);
-                  setLastMessage("下書きを消去しました");
-                }}
-                className="rounded-md border border-slate-300 bg-white text-sm px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-              >
-                本文クリア
-              </button>
+                    setDraftSavedAt(null);
+                    setLastMessage("下書きを消去しました");
+                  }}
+                  className="rounded-md border border-slate-300 bg-white text-sm px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+                >
+                  本文クリア
+                </button>
                 <button
                   type="button"
                   onClick={handleSaveRecord}
-                  disabled={recordText.trim().length === 0}
+                  disabled={
+                    saveStatus === "saving" ||
+                    recordText.trim().length === 0 ||
+                    !recordDate
+                  }
                   className="rounded-md bg-slate-800 text-white text-sm font-medium px-3 py-1.5 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  保存
+                  {saveStatus === "saving" ? "保存中…" : "保存"}
                 </button>
               </div>
             </div>
@@ -517,16 +566,27 @@ export default function SupportRecordPage({
             <h2 className="text-base font-semibold text-slate-700">
               保存済み記録
             </h2>
-            <span className="text-xs text-slate-500">
-              {recordsLoaded
-                ? `${savedRecords.length} 件（この利用者のみ）`
-                : "読み込み中…"}
-            </span>
+            <span className="text-xs text-slate-500">{listBadge}</span>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg">
-            {!recordsLoaded ? (
+            {listStatus === "loading" || listStatus === "idle" ? (
               <div className="px-4 py-6 text-center text-sm text-slate-400">
                 読み込み中…
+              </div>
+            ) : listStatus === "failed" ? (
+              <div className="px-4 py-6 text-center text-sm text-rose-600">
+                保存済み記録の取得に失敗しました。バックエンドの稼働状況を確認してください。
+                {userId && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => reloadSavedRecords(userId)}
+                      className="rounded-md border border-slate-300 bg-white text-xs px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+                    >
+                      再読込
+                    </button>
+                  </div>
+                )}
               </div>
             ) : savedRecords.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-slate-500">
@@ -535,12 +595,6 @@ export default function SupportRecordPage({
             ) : (
               <ul className="divide-y divide-slate-200">
                 {savedRecords.map((r) => {
-                  const d = new Date(r.createdAt);
-                  const dateLabel = isNaN(d.getTime())
-                    ? r.createdAt
-                    : `${d.toLocaleDateString("ja-JP")} ${d.toLocaleTimeString(
-                        "ja-JP",
-                      )}`;
                   const preview =
                     r.body.length > 60 ? `${r.body.slice(0, 60)}…` : r.body;
                   return (
@@ -549,8 +603,9 @@ export default function SupportRecordPage({
                       className="flex items-start justify-between gap-3 px-4 py-3"
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-slate-500 tabular-nums">
-                          保存日時: {dateLabel}
+                        <div className="flex items-center gap-3 text-xs text-slate-500 tabular-nums flex-wrap">
+                          <span>記録日: {r.record_date}</span>
+                          <span>保存日時: {formatDateTime(r.created_at)}</span>
                         </div>
                         <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap break-words line-clamp-2">
                           {preview}
