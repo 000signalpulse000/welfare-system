@@ -47,3 +47,42 @@ export async function deleteSupportRecord(id: number): Promise<void> {
     throw new Error(`delete failed: ${res.status}`);
   }
 }
+
+export type BackendIntakeRecord = {
+  id: number;
+  name: string;
+  kana: string | null;
+  birth_date: string | null;
+  phone: string | null;
+  address: string | null;
+  desired_service: string;
+  consultation_route: string | null;
+  consultation_memo: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type IntakeRecordInput = {
+  name: string;
+  kana?: string | null;
+  birth_date?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  desired_service: string;
+  consultation_route?: string | null;
+  consultation_memo?: string | null;
+};
+
+export async function createIntakeRecord(
+  input: IntakeRecordInput,
+): Promise<BackendIntakeRecord> {
+  const res = await fetch(`${API_BASE_URL}/intakes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`save failed: ${res.status}`);
+  }
+  return res.json();
+}
