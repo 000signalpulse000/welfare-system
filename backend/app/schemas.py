@@ -84,6 +84,37 @@ class SupportPlanRead(BaseModel):
     updated_at: datetime
 
 
+class ServiceMeetingCreate(BaseModel):
+    user_id: str = Field(min_length=1, max_length=32)
+    service_type: str = Field(min_length=1, max_length=64)
+    meeting_date: date
+    meeting_place: str = Field(min_length=1, max_length=255)
+    attendees: str | None = None
+    agenda: str | None = None
+    discussion: str | None = None
+    decision: str | None = None
+    next_action: str | None = None
+    note: str | None = None
+
+
+class ServiceMeetingRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: str
+    service_type: str
+    meeting_date: date
+    meeting_place: str
+    attendees: str | None
+    agenda: str | None
+    discussion: str | None
+    decision: str | None
+    next_action: str | None
+    note: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class MonitoringCreate(BaseModel):
     user_id: str = Field(min_length=1, max_length=32)
     service_type: str = Field(min_length=1, max_length=64)

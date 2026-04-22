@@ -1,5 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { use, useRef, useState } from "react";
 import { findUserById } from "@/data/users";
+import { createServiceMeeting, ServiceMeetingInput } from "@/lib/api";
+
+type SaveStatus = "idle" | "saving" | "saved" | "failed";
 
 function Field({
   id,
@@ -36,13 +42,23 @@ function Field({
 const inputBase =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-400";
 
-export default async function UserMeetingPage({
+function emptyToNull(v: FormDataEntryValue | null): string | null {
+  if (v === null) return null;
+  const s = typeof v === "string" ? v.trim() : "";
+  return s.length > 0 ? s : null;
+}
+
+export default function UserMeetingPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id } = use(params);
   const user = findUserById(id);
+
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   if (!user) {
     return (
@@ -102,6 +118,60 @@ export default async function UserMeetingPage({
 
   const userDetailHref = `/users/${user.id.toLowerCase()}`;
 
+  const handleReset = () => {
+    formRef.current?.reset();
+    setSaveStatus("idle");
+    setMessage(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+
+    const meetingDate = (data.get("meetingDate") as string | null) ?? "";
+    const meetingPlace = ((data.get("meetingPlace") as string | null) ?? "").trim();
+    const serviceType = ((data.get("service") as string | null) ?? "").trim();
+
+    if (!meetingDate || !meetingPlace || !serviceType) {
+      setSaveStatus("failed");
+      setMessage("必須項目（サービス種別・開催日・開催場所）を入力してください");
+      return;
+    }
+
+    const payload: ServiceMeetingInput = {
+      user_id: user.id,
+      service_type: serviceType,
+      meeting_date: meetingDate,
+      meeting_place: meetingPlace,
+      attendees: emptyToNull(data.get("attendees")),
+      agenda: emptyToNull(data.get("agenda")),
+      discussion: emptyToNull(data.get("discussion")),
+      decision: emptyToNull(data.get("decision")),
+      next_action: emptyToNull(data.get("nextAction")),
+      note: emptyToNull(data.get("note")),
+    };
+
+    setSaveStatus("saving");
+    setMessage("保存中…");
+    try {
+      const saved = await createServiceMeeting(payload);
+      setSaveStatus("saved");
+      setMessage(`保存しました（ID: ${saved.id}）`);
+      form.reset();
+    } catch {
+      setSaveStatus("failed");
+      setMessage("保存に失敗しました。通信状況を確認してください。");
+    }
+  };
+
+  const statusClass =
+    saveStatus === "saved"
+      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+      : saveStatus === "failed"
+        ? "text-rose-700 bg-rose-50 border-rose-200"
+        : "text-slate-600 bg-slate-100 border-slate-200";
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-slate-800 text-white border-b border-slate-700">
@@ -153,10 +223,17 @@ export default async function UserMeetingPage({
               利用者一覧へ
             </Link>
           </div>
-          <span className="text-xs text-slate-500">v1(保存機能は準備中)</span>
+          {message && (
+            <span
+              role="status"
+              className={`text-xs rounded-full border px-3 py-1 ${statusClass}`}
+            >
+              {message}
+            </span>
+          )}
         </div>
 
-        <form className="space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
           <section>
             <h2 className="text-base font-semibold text-slate-700 mb-3">
               開催情報
@@ -172,13 +249,14 @@ export default async function UserMeetingPage({
                   className={inputBase + " bg-slate-50 text-slate-700"}
                 />
               </Field>
-              <Field id="meeting-service" label="サービス種別">
+              <Field id="meeting-service" label="サービス種別" required>
                 <input
                   id="meeting-service"
                   name="service"
                   type="text"
                   defaultValue={user.service}
                   placeholder="例: 就労継続支援B型"
+                  required
                   className={inputBase}
                 />
               </Field>
@@ -187,6 +265,7 @@ export default async function UserMeetingPage({
                   id="meeting-date"
                   name="meetingDate"
                   type="date"
+                  required
                   className={inputBase + " tabular-nums"}
                 />
               </Field>
@@ -197,6 +276,7 @@ export default async function UserMeetingPage({
                   type="text"
                   autoComplete="off"
                   placeholder="例: 事業所 相談室／オンライン"
+                  required
                   className={inputBase}
                 />
               </Field>
@@ -298,23 +378,22 @@ export default async function UserMeetingPage({
 
           <div className="flex items-center justify-between flex-wrap gap-2 bg-white border border-slate-200 rounded-lg p-4">
             <p className="text-xs text-slate-500">
-              入力内容の保存機能は v2 で対応予定です。現時点では画面確認用です。
+              保存するとサーバー（PostgreSQL）に登録されます。
             </p>
             <div className="flex items-center gap-2">
               <button
-                type="reset"
+                type="button"
+                onClick={handleReset}
                 className="rounded-md border border-slate-300 bg-white text-sm px-3 py-1.5 text-slate-700 hover:bg-slate-50"
               >
                 入力クリア
               </button>
               <button
-                type="button"
-                disabled
-                aria-disabled
-                title="準備中"
-                className="rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 opacity-70 cursor-not-allowed"
+                type="submit"
+                disabled={saveStatus === "saving"}
+                className="rounded-md bg-slate-800 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                保存（準備中）
+                {saveStatus === "saving" ? "保存中…" : "保存"}
               </button>
             </div>
           </div>

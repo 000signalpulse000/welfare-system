@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import Base, engine
-from .routers import intakes, monitorings, plans, records
+from .routers import intakes, meetings, monitorings, plans, records
 
 
 @asynccontextmanager
@@ -36,3 +36,4 @@ app.include_router(records.router)
 app.include_router(intakes.router)
 app.include_router(plans.router)
 app.include_router(monitorings.router)
+app.include_router(meetings.router)

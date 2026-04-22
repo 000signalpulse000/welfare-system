@@ -86,6 +86,33 @@ class SupportPlan(Base):
     )
 
 
+class ServiceMeeting(Base):
+    __tablename__ = "service_meetings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    service_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    meeting_date: Mapped[date] = mapped_column(Date, nullable=False)
+    meeting_place: Mapped[str] = mapped_column(String(255), nullable=False)
+    attendees: Mapped[str | None] = mapped_column(Text, nullable=True)
+    agenda: Mapped[str | None] = mapped_column(Text, nullable=True)
+    discussion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decision: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_action: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
 class Monitoring(Base):
     __tablename__ = "monitorings"
 

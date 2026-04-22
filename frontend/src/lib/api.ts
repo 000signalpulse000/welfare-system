@@ -192,3 +192,46 @@ export async function createMonitoring(
   }
   return res.json();
 }
+
+export type BackendServiceMeeting = {
+  id: number;
+  user_id: string;
+  service_type: string;
+  meeting_date: string;
+  meeting_place: string;
+  attendees: string | null;
+  agenda: string | null;
+  discussion: string | null;
+  decision: string | null;
+  next_action: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ServiceMeetingInput = {
+  user_id: string;
+  service_type: string;
+  meeting_date: string;
+  meeting_place: string;
+  attendees?: string | null;
+  agenda?: string | null;
+  discussion?: string | null;
+  decision?: string | null;
+  next_action?: string | null;
+  note?: string | null;
+};
+
+export async function createServiceMeeting(
+  input: ServiceMeetingInput,
+): Promise<BackendServiceMeeting> {
+  const res = await fetch(`${API_BASE_URL}/meetings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`save failed: ${res.status}`);
+  }
+  return res.json();
+}
