@@ -10,8 +10,15 @@ type Phrase = {
   text: string;
 };
 
+type SavedRecord = {
+  id: string;
+  createdAt: string;
+  body: string;
+};
+
 const STORAGE_KEY = "welfare:support-phrases/v1";
 const DRAFT_KEY_PREFIX = "welfare:support-record-draft:";
+const RECORDS_KEY_PREFIX = "welfare:support-records:";
 
 const SAMPLE_PHRASES: Phrase[] = [
   { id: "p-sample-1", name: "PC訓練", text: "PC訓練" },
@@ -48,9 +55,13 @@ export default function SupportRecordPage({
   const [newText, setNewText] = useState("");
   const [lastMessage, setLastMessage] = useState<string | null>(null);
 
+  const [savedRecords, setSavedRecords] = useState<SavedRecord[]>([]);
+  const [recordsLoaded, setRecordsLoaded] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const draftKey = user ? `${DRAFT_KEY_PREFIX}${user.id}` : null;
+  const recordsKey = user ? `${RECORDS_KEY_PREFIX}${user.id}` : null;
 
   useEffect(() => {
     try {
@@ -107,6 +118,39 @@ export default function SupportRecordPage({
     }
   }, [recordText, draftKey, draftLoaded]);
 
+  useEffect(() => {
+    if (!recordsKey) return;
+    setRecordsLoaded(false);
+    try {
+      const raw = localStorage.getItem(recordsKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as SavedRecord[];
+        if (Array.isArray(parsed)) {
+          setSavedRecords(parsed);
+          setRecordsLoaded(true);
+          return;
+        }
+      }
+    } catch {
+      // fall through
+    }
+    setSavedRecords([]);
+    setRecordsLoaded(true);
+  }, [recordsKey]);
+
+  useEffect(() => {
+    if (!recordsKey || !recordsLoaded) return;
+    try {
+      if (savedRecords.length === 0) {
+        localStorage.removeItem(recordsKey);
+      } else {
+        localStorage.setItem(recordsKey, JSON.stringify(savedRecords));
+      }
+    } catch {
+      // ignore
+    }
+  }, [savedRecords, recordsKey, recordsLoaded]);
+
   const toggleChecked = (id: string) => {
     setCheckedIds((prev) => {
       const next = new Set(prev);
@@ -150,6 +194,59 @@ export default function SupportRecordPage({
     setNewName("");
     setNewText("");
     setLastMessage(`「${phrase.name}」を追加しました`);
+  };
+
+  const handleSaveRecord = () => {
+    const body = recordText.trim();
+    if (body.length === 0) {
+      setLastMessage("記録が空のため保存できません");
+      return;
+    }
+    const record: SavedRecord = {
+      id: createId().replace(/^p-/, "r-"),
+      createdAt: new Date().toISOString(),
+      body,
+    };
+    setSavedRecords((prev) => [record, ...prev]);
+    setRecordText("");
+    if (draftKey) {
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        // ignore
+      }
+    }
+    setDraftSavedAt(null);
+    setLastMessage("記録を保存しました");
+  };
+
+  const handleLoadRecord = (id: string) => {
+    const target = savedRecords.find((r) => r.id === id);
+    if (!target) return;
+    if (recordText.trim().length > 0) {
+      const ok = window.confirm(
+        "現在の入力内容を破棄して読み込みますか？",
+      );
+      if (!ok) return;
+    }
+    setRecordText(target.body);
+    setLastMessage("保存済み記録を読み込みました");
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (ta) {
+        ta.focus();
+        ta.selectionStart = ta.selectionEnd = ta.value.length;
+      }
+    });
+  };
+
+  const handleDeleteRecord = (id: string) => {
+    const target = savedRecords.find((r) => r.id === id);
+    if (!target) return;
+    const ok = window.confirm("この保存済み記録を削除しますか？");
+    if (!ok) return;
+    setSavedRecords((prev) => prev.filter((r) => r.id !== id));
+    setLastMessage("保存済み記録を削除しました");
   };
 
   const handleDeletePhrase = (id: string) => {
@@ -326,15 +423,14 @@ export default function SupportRecordPage({
               >
                 本文クリア
               </button>
-              <button
-                type="button"
-                disabled
-                className="rounded-md bg-slate-800 text-white text-sm font-medium px-3 py-1.5 opacity-70 cursor-not-allowed"
-                aria-disabled
-                title="準備中"
-              >
-                保存（準備中）
-              </button>
+                <button
+                  type="button"
+                  onClick={handleSaveRecord}
+                  disabled={recordText.trim().length === 0}
+                  className="rounded-md bg-slate-800 text-white text-sm font-medium px-3 py-1.5 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  保存
+                </button>
               </div>
             </div>
           </div>
@@ -414,6 +510,74 @@ export default function SupportRecordPage({
               </button>
             </div>
           </aside>
+        </section>
+
+        <section>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-base font-semibold text-slate-700">
+              保存済み記録
+            </h2>
+            <span className="text-xs text-slate-500">
+              {recordsLoaded
+                ? `${savedRecords.length} 件（この利用者のみ）`
+                : "読み込み中…"}
+            </span>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-lg">
+            {!recordsLoaded ? (
+              <div className="px-4 py-6 text-center text-sm text-slate-400">
+                読み込み中…
+              </div>
+            ) : savedRecords.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm text-slate-500">
+                保存済みの記録はまだありません。記録内容を入力し「保存」を押してください。
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-200">
+                {savedRecords.map((r) => {
+                  const d = new Date(r.createdAt);
+                  const dateLabel = isNaN(d.getTime())
+                    ? r.createdAt
+                    : `${d.toLocaleDateString("ja-JP")} ${d.toLocaleTimeString(
+                        "ja-JP",
+                      )}`;
+                  const preview =
+                    r.body.length > 60 ? `${r.body.slice(0, 60)}…` : r.body;
+                  return (
+                    <li
+                      key={r.id}
+                      className="flex items-start justify-between gap-3 px-4 py-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-slate-500 tabular-nums">
+                          保存日時: {dateLabel}
+                        </div>
+                        <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap break-words line-clamp-2">
+                          {preview}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleLoadRecord(r.id)}
+                          className="rounded-md border border-slate-300 bg-white text-xs px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+                        >
+                          読込
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRecord(r.id)}
+                          className="rounded-md border border-rose-200 bg-white text-xs px-3 py-1.5 text-rose-600 hover:bg-rose-50"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </section>
 
         <section>
